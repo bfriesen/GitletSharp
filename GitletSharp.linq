@@ -3,20 +3,20 @@
 void Main()
 {
     Gitlet.Init(new InitOptions() { Bare = false });
+    Gitlet.Add(_devPath);
 }
+
+private const string _devPath = @"C:\Temp\gitlet_sandbox";
 
 public static class Gitlet
 {
-//    private static readonly Files _files = new Files(Directory.GetCurrentDirectory());
-    private static readonly Files _files = new Files(@"C:\Temp\gitlet_sandbox");
-
     /// <summary>
     /// Initializes the current directory as a new repository.
     /// </summary>
     public static void Init(InitOptions options = null)
     {
         // Abort if already a repository.
-        if (_files.InRepo()) { return; }
+        if (Files.InRepo()) { return; }
         
         options = options ?? new InitOptions();
         
@@ -24,7 +24,7 @@ public static class Gitlet
         var gitletStructure =
             new Directory(
                 new File("HEAD", "ref: refs/heads/master\n"),
-                new File("config", new Config { Bare = options.Bare }.ToFileFormat()),
+                new File("config", "[core]\n    bare = " + options.Bare.ToString().ToLower() + "\n"),
                 new Directory("objects"),
                 new Directory("refs",
                     new Directory("heads")));
@@ -33,13 +33,49 @@ public static class Gitlet
         // is not bare, / put the directories inside the `.gitlet` directory.
         // If the repository is bare, put them in the top level of the
         // repository.
-        _files.WriteFilesFromTree(options.Bare ? gitletStructure : new Directory(".gitlet", gitletStructure), _files.CurrentPath);
+        Files.WriteFilesFromTree(options.Bare ? gitletStructure : new Directory(".gitlet", gitletStructure), Files.CurrentPath);
     }
     
+    /// <sumary>
+    /// Adds files that match `path` to the index.
+    /// </summary>
     public static void Add(string path)
     {
-        // TODO: Implement.
+        Files.AssertInRepo();
+        Config.AssertNotBare();
+    
+        // Get the paths of all the files matching `path`.
+        var addedFiles = Files.lsRecursive(path);
+        
+        // Abort if no files matched `path`.
+        if (addedFiles.Length == 0)
+        {
+            throw new Exception(path + " did not match any files"); // TODO: make 'path' relative to repo root
+        }
+        
+        // Otherwise, use the `UpdateIndex()` Git command to actually add
+        // the files.
+        foreach (var file in addedFiles)
+        {
+            UpdateIndex(file, new UpdateIndexOptions { Add = true });
+        }
     }
+    
+    public static void UpdateIndex(string file, UpdateIndexOptions options)
+    {
+        // TODO: Implement
+        ("Adding '" + file + "' to index...").Dump();
+    }
+}
+
+public class InitOptions
+{
+    public bool Bare { get; set; }
+}
+
+public class UpdateIndexOptions
+{
+    public bool Add { get; set; }
 }
 
 #region Config
@@ -47,12 +83,12 @@ public static class Gitlet
 internal class Config
 {
     private bool? _fileMode;
-    private bool? _bare;
+    private bool _bare;
     private bool? _logAllRefUpdates;
     
     public string RepositoryFormatVersion { get; set; }
     public bool? FileMode { get { return _fileMode; } set { _fileMode = value; } }
-    public bool? Bare { get { return _bare; } set { _bare = value; } }
+    public bool Bare { get { return _bare; } set { _bare = value; } }
     public bool? LogAllRefUpdates { get { return _logAllRefUpdates; } set { _logAllRefUpdates = value; } }
     
     public Dictionary<string, Remote> Remotes { get; set; }
@@ -64,14 +100,29 @@ internal class Config
         Branches = new Dictionary<string, Branch>();
     }
     
-    public string ToFileFormat()
+    public static void AssertNotBare()
+    {
+        var config = Read();
+        
+        if (config.Bare)
+        {
+            throw new Exception("this operation must be run in a work tree");
+        }
+    }
+    
+    public static Config Read()
+    {
+        return Parse(Files.Read(Path.Combine(Files.GitletPath(), "config")));
+    }
+    
+    private string ToFileFormat()
     {
         var sb = new StringBuilder();
         
         sb.Append("[core]");
         if (RepositoryFormatVersion != null) { sb.Append("\n    repositoryformatversion = ").Append(RepositoryFormatVersion); }
         if (FileMode != null) { sb.Append("\n    filemode = ").Append(FileMode.ToString().ToLower()); }
-        if (Bare != null) { sb.Append("\n    bare = ").Append(Bare.ToString().ToLower()); }
+        sb.Append("\n    bare = ").Append(Bare.ToString().ToLower());
         if (LogAllRefUpdates != null) { sb.Append("\n    logallrefupdates = ").Append(LogAllRefUpdates.ToString().ToLower()); }
         
         foreach (var item in Remotes)
@@ -194,6 +245,19 @@ internal class Config
         config.Branches.Add(section.Label, branch);
     }
 
+    private static void ParseBool(string stringValue, ref bool value)
+    {
+        switch (stringValue)
+        {
+            case "true":
+                value = true;
+                break;
+            case "false":
+                value = false;
+                break;
+        }
+    }
+
     private static void ParseBool(string stringValue, ref bool? value)
     {
         switch (stringValue)
@@ -262,23 +326,18 @@ internal class Branch
 
 #region File
 
-internal class Files
+internal static class Files
 {
-    private readonly string _path;
+    private static readonly string _path = _devPath;
     
-    public Files(string path)
-    {
-        _path = path;
-    }
-    
-    public string CurrentPath { get { return _path; } }
+    public static string CurrentPath { get { return _path; } }
 
-    public bool InRepo()
+    public static bool InRepo()
     {
         return GitletPath() != null;
     }
     
-    public void AssertInRepo()
+    public static void AssertInRepo()
     {
         if (!InRepo())
         {
@@ -286,7 +345,7 @@ internal class Files
         }
     }
     
-    public void WriteFilesFromTree(ITree tree, string prefix)
+    public static void WriteFilesFromTree(ITree tree, string prefix)
     {
         var path = Path.Combine(prefix, tree.Name);
     
@@ -311,7 +370,17 @@ internal class Files
         }
     }
     
-    public string GitletPath(string dir = null)
+    public static string Read(string path)
+    {
+        if (File.Exists(path))
+        {
+            return File.ReadAllText(path);
+        }
+        
+        return null;
+    }
+    
+    public static string GitletPath(string dir = null)
     {
         dir = dir ?? _path;
     
@@ -339,19 +408,15 @@ internal class Files
             {
                 return GitletPath(Path.Combine(dir, ".."));
             }
-            else
-            {
-                return null;
-            }
         }
         
         return null;
     }
-}
-
-public class InitOptions
-{
-    public bool Bare { get; set; }
+    
+    public static string[] lsRecursive(string path)
+    {
+        return Directory.GetFiles(path);
+    }
 }
 
 internal class Section
@@ -429,6 +494,34 @@ internal class Directory : ITree
     public static void CreateDirectory(string path)
     {
         System.IO.Directory.CreateDirectory(path);
+    }
+    
+    public static string[] GetFiles(string path)
+    {
+        return GetFilesEnumerable(path).ToArray();
+    }
+    
+    private static IEnumerable<string> GetFilesEnumerable(string path)
+    {
+        var dir = new DirectoryInfo(path);
+        
+        if (dir.Name == ".gitlet")
+        {
+            yield break;
+        }
+        
+        foreach (var file in System.IO.Directory.GetFiles(path))
+        {
+            yield return file;
+        }
+        
+        foreach (var subDir in System.IO.Directory.GetDirectories(path))
+        {
+            foreach (var subDirFile in GetFiles(subDir))
+            {
+                yield return subDirFile;
+            }
+        }
     }
 }
 
