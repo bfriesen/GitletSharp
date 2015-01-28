@@ -1,6 +1,6 @@
 ﻿namespace GitletSharp
 {
-    public static class Merge
+    internal static class Merge
     {
         public static bool IsMergeInProgress()
         {

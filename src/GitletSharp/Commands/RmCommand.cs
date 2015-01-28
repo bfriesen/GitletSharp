@@ -2,7 +2,7 @@
 
 namespace GitletSharp
 {
-    class RmCommand : ConsoleCommand
+    internal class RmCommand : ConsoleCommand
     {
         public RmCommand()
         {

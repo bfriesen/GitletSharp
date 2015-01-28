@@ -3,7 +3,7 @@ using ManyConsole;
 
 namespace GitletSharp
 {
-    public class CommitCommand : ConsoleCommand
+    internal class CommitCommand : ConsoleCommand
     {
         public CommitCommand()
         {
