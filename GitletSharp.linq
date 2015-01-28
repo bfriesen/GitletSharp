@@ -47,7 +47,7 @@ public static class Gitlet
         Config.AssertNotBare();
     
         // Get the paths of all the files matching `path`.
-        var addedFiles = Files.lsRecursive(path);
+        var addedFiles = Files.LsRecursive(path);
         
         // Abort if no files matched `path`.
         if (addedFiles.Length == 0)
@@ -71,12 +71,50 @@ public static class Gitlet
         options = options ?? new RemoveOptions();
         
         // Get the paths of all files in the index that match `path`.
-        // var filesToRm = index.matchingFiles(path);
+         var filesToRm = Index.MatchingFiles(path);
         
-        // TODO: Finish implementing
+        // Abort if `-f` was passed. The removal of files with changes is
+        // not supported.
+        if (options.f)
+        {
+            throw new Exception("unsupported");
+        }
+        
+        // Abort if no files matched `path`.
+        if (filesToRm.Length == 0)
+        {
+            throw new Exception(Files.PathFromRepoRoot(path) + " did not match any files");
+        }
+        
+        // Abort if `path` is a directory and `-r` was not passed.
+        var dir = new DirectoryInfo(path);
+        
+        if (dir.Exists && !options.r)
+        {
+            throw new Exception("not removing " + path + " recursively without -r");
+        }
+        
+        // Get a list of all files that are to be removed and have also
+        // been changed on disk.  If this list is not empty then abort.
+        var changesToRm = Diff.AddedOrModifiedFiles().Intersect(filesToRm).ToArray();
+        
+        if (changesToRm.Length > 0)
+        {
+            throw new Exception("these files have changes:\n" + string.Join("\n", changesToRm) + "\n");
+        }
+        
+        foreach (var file in filesToRm.Select(Files.WorkingCopyPath).Where(file => File.Exists(file)))
+        {
+            File.Delete(file);
+        }
+        
+        foreach (var file in filesToRm)
+        {
+            UpdateIndex(file, new UpdateIndexOptions { UpdateType = UpdateType.Rm });
+        }
     }
     
-    private static void UpdateIndex(string file, UpdateIndexOptions options)
+    public static void UpdateIndex(string file, UpdateIndexOptions options)
     {
         Files.AssertInRepo();
         Config.AssertNotBare();
@@ -155,7 +193,8 @@ public enum UpdateType
 
 public class RemoveOptions
 {
-    
+    public bool f { get; set; }
+    public bool r { get; set; }
 }
 
 #region Objects
@@ -190,6 +229,12 @@ internal static class Index
             .ToDictionary(
                 line => new Key(line.Split(' ')[0], int.Parse(line.Split(' ')[1])),
                 line => line.Split(' ')[2]);
+    }
+    
+    public static Dictionary<string, string> Toc()
+    {
+        var index = Read();
+        return index.ToDictionary(item => item.Key.Path, item => item.Value);
     }
     
     public static bool IsFileInConflict(string path)
@@ -238,6 +283,12 @@ internal static class Index
         Files.Write(Path.Combine(Files.GitletPath(), "index"), indexStr);
     }
     
+    public static string[] MatchingFiles(string pathSpec)
+    {
+        var searchPath = Files.PathFromRepoRoot(pathSpec);
+        return Read().Keys.Select(Key => Key.Path).Where(path => Regex.IsMatch(path, "^" + pathSpec)).ToArray();
+    }
+    
     public struct Key
     {
         public readonly string Path;
@@ -264,6 +315,23 @@ internal static class Index
         {
             return Tuple.Create(Path, Stage).GetHashCode();
         }
+    }
+}
+
+#endregion
+
+#region Diff
+
+public static class Diff
+{
+    public static string[] AddedOrModifiedFiles()
+    {
+        /*var headToc = refs.hash("HEAD") ? objects.commitToc(refs.hash("HEAD")) : {};
+        var wc = diff.nameStatus(diff.tocDiff(headToc, index.workingCopyToc()));
+        return Object.keys(wc).filter(function(p) { return wc[p] !== diff.FILE_STATUS.DELETE; });*/
+        
+        // TODO: Implement
+        return new string[0];
     }
 }
 
@@ -667,7 +735,7 @@ internal static class Files
         return Path.Combine(GitletPath(), "..", path ?? "");
     }
     
-    public static string[] lsRecursive(string path)
+    public static string[] LsRecursive(string path)
     {
         return Directory.GetFiles(path);
     }
@@ -811,6 +879,11 @@ internal class File : ITree
     public static void WriteAllText(string path, string contents)
     {
         System.IO.File.WriteAllText(path, contents);
+    }
+    
+    public static void Delete(string path)
+    {
+        System.IO.File.Delete(path);
     }
 }
 
