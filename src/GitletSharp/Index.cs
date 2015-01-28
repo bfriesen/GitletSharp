@@ -10,7 +10,7 @@ namespace GitletSharp
     {
         public static bool HasFile(string path, int stage)
         {
-            return Read().ContainsKey(new Key(path, stage));
+            return Read().ContainsKey(GetKey(path, stage));
         }
 
         public static Dictionary<Key, string> Read()
@@ -55,14 +55,14 @@ namespace GitletSharp
         private static void WriteEntry(string path, int stage, string content)
         {
             var index = Read();
-            index[new Key(path, stage)] = Objects.Write(content);
+            index[GetKey(path, stage)] = Objects.Write(content);
             Write(index);
         }
 
         private static void RmEntry(string path, int stage)
         {
             var index = Read();
-            index.Remove(new Key(path, stage));
+            index.Remove(GetKey(path, stage));
             Write(index);
         }
 
@@ -79,7 +79,12 @@ namespace GitletSharp
         public static string[] MatchingFiles(string pathSpec)
         {
             var searchPath = Files.PathFromRepoRoot(pathSpec);
-            return Read().Keys.Select(Key => Key.Path).Where(path => Regex.IsMatch(path, "^" + pathSpec)).ToArray();
+            return Read().Keys.Select(Key => Key.Path).Where(path => Regex.IsMatch(path, "^" + searchPath)).ToArray();
+        }
+
+        private static Key GetKey(string path, int stage)
+        {
+            return new Key(Files.PathFromRepoRoot(path), stage);
         }
 
         public struct Key

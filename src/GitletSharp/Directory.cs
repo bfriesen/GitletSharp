@@ -77,7 +77,7 @@ namespace GitletSharp
             }
 
             // If it's a file, not a directory, just return that file.
-            if ((dir.Attributes & FileAttributes.Directory) != FileAttributes.Directory)
+            if ((int)dir.Attributes != -1 && (dir.Attributes & FileAttributes.Directory) != FileAttributes.Directory)
             {
                 yield return path;
                 yield break;

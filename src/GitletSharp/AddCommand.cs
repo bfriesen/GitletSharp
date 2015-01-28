@@ -6,7 +6,7 @@ namespace GitletSharp
     {
         public AddCommand()
         {
-            IsCommand("add", "Adds files to the index.");
+            IsCommand("add", "Add file(s) to the index");
 
             HasAdditionalArguments(1, " <path>");
 

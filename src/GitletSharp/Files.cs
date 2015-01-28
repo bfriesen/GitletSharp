@@ -50,15 +50,16 @@ namespace GitletSharp
 
         private static string Relative(string folder, string filespec)
         {
-            if (filespec.StartsWith("."))
+            if (!Path.IsPathRooted(filespec))
             {
-                filespec = _path + filespec;
+                filespec = Path.Combine(_path, filespec);
             }
 
             var dir = new DirectoryInfo(filespec);
 
             // Folders must end in a slash
-            if ((dir.Attributes & FileAttributes.Directory) == FileAttributes.Directory
+            if ((int)dir.Attributes != -1
+                && (dir.Attributes & FileAttributes.Directory) == FileAttributes.Directory
                 && !filespec.EndsWith(DirectorySeparatorString))
             {
                 filespec += DirectorySeparatorString;
@@ -186,9 +187,9 @@ namespace GitletSharp
 
         public static string Absolute(string path)
         {
-            if (path.StartsWith("."))
+            if (!Path.IsPathRooted(path))
             {
-                return _path + path;
+                return Path.Combine(_path, path);
             }
 
             return path;

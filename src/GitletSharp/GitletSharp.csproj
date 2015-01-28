@@ -67,7 +67,8 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Refs.cs" />
     <Compile Include="Remote.cs" />
-    <Compile Include="RemoveOptions.cs" />
+    <Compile Include="RmOptions.cs" />
+    <Compile Include="RmCommand.cs" />
     <Compile Include="Section.cs" />
     <Compile Include="Setting.cs" />
     <Compile Include="UpdateIndexOptions.cs" />

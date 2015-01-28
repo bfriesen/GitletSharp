@@ -1,6 +1,6 @@
 ﻿namespace GitletSharp
 {
-    public class RemoveOptions
+    public class RmOptions
     {
         public bool f { get; set; }
         public bool r { get; set; }

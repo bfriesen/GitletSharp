@@ -62,12 +62,14 @@ namespace GitletSharp
         /// <summary>
         /// Removes files that match `path` from the index.
         /// </summary>
-        public static void Rm(string path, RemoveOptions options)
+        public static void Rm(string path, RmOptions options)
         {
             Files.AssertInRepo();
             Config.AssertNotBare();
 
-            options = options ?? new RemoveOptions();
+            options = options ?? new RmOptions();
+
+            path = Files.Absolute(path);
 
             // Get the paths of all files in the index that match `path`.
             var filesToRm = Index.MatchingFiles(path);
@@ -226,7 +228,7 @@ namespace GitletSharp
 
             // Abort if `file` is a directory.  `UpdateIndex()` only handles
             // single files.
-            if (isOnDisk && (fileInfo.Attributes & FileAttributes.Directory) == FileAttributes.Directory)
+            if (isOnDisk && (int)fileInfo.Attributes != -1 && (fileInfo.Attributes & FileAttributes.Directory) == FileAttributes.Directory)
             {
                 throw new Exception(pathFromRoot + " is a directory - add files inside");
             }
