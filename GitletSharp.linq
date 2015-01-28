@@ -1,4 +1,6 @@
-<Query Kind="Program" />
+<Query Kind="Program">
+  <Namespace>System.Security.Cryptography</Namespace>
+</Query>
 
 void Main()
 {
@@ -50,21 +52,89 @@ public static class Gitlet
         // Abort if no files matched `path`.
         if (addedFiles.Length == 0)
         {
-            throw new Exception(path + " did not match any files"); // TODO: make 'path' relative to repo root
+            throw new Exception(Files.PathFromRepoRoot(path) + " did not match any files");
         }
         
         // Otherwise, use the `UpdateIndex()` Git command to actually add
         // the files.
         foreach (var file in addedFiles)
         {
-            UpdateIndex(file, new UpdateIndexOptions { Add = true });
+            UpdateIndex(file, new UpdateIndexOptions { UpdateType = UpdateType.Add });
         }
     }
     
-    public static void UpdateIndex(string file, UpdateIndexOptions options)
+    public static void Rm(string path, RemoveOptions options)
     {
-        // TODO: Implement
-        ("Adding '" + file + "' to index...").Dump();
+        Files.AssertInRepo();
+        Config.AssertNotBare();
+        
+        options = options ?? new RemoveOptions();
+        
+        // Get the paths of all files in the index that match `path`.
+        // var filesToRm = index.matchingFiles(path);
+        
+        // TODO: Finish implementing
+    }
+    
+    private static void UpdateIndex(string file, UpdateIndexOptions options)
+    {
+        Files.AssertInRepo();
+        Config.AssertNotBare();
+        
+        options = options ?? new UpdateIndexOptions();
+        
+        var fileInfo = new FileInfo(file);
+        
+        var pathFromRoot = Files.PathFromRepoRoot(file);
+        var isOnDisk = fileInfo.Exists;
+        var isInIndex = Index.HasFile(file, 0);
+    
+        // Abort if `file` is a directory.  `UpdateIndex()` only handles
+        // single files.
+        if (isOnDisk && (fileInfo.Attributes & FileAttributes.Directory) == FileAttributes.Directory)
+        {
+            throw new Exception(pathFromRoot + " is a directory - add files inside");
+        }
+        
+        if (options.UpdateType == UpdateType.Rm && !isOnDisk && isInIndex)
+        {
+            // Abort if file is being removed and is in conflict.  Gitlet
+            // doesn't support this.
+            if (Index.IsFileInConflict(file))
+            {
+                throw new Exception("unsupported");
+            }
+            
+            Index.WriteRm(file);
+            return;
+        }
+        
+        // If file is being removed, is not on disk and not in the index,
+        // there is no work to do.
+        if (options.UpdateType == UpdateType.Rm && !isOnDisk && !isInIndex)
+        {
+            return;
+        }
+        
+        // Abort if the file is on disk and not in the index and the
+        // `--add` was not passed.
+        if (options.UpdateType == UpdateType.NotSet && isOnDisk && !isInIndex)
+        {
+            throw new Exception("cannot add " + pathFromRoot + " to index - use --add option");
+        }
+        
+        // If file is on disk and either `-add` was passed or the file is
+        // in the index, add the file's current content to the index.
+        if (isOnDisk && (options.UpdateType == UpdateType.Add || isInIndex))
+        {
+            Index.WriteAdd(file);
+            return;
+        }
+        
+        if (options.UpdateType != UpdateType.Rm && !isOnDisk)
+        {
+            throw new Exception(pathFromRoot + " does not exist and --remove not passed");
+        }
     }
 }
 
@@ -75,8 +145,129 @@ public class InitOptions
 
 public class UpdateIndexOptions
 {
-    public bool Add { get; set; }
+    public UpdateType UpdateType { get; set; }
 }
+
+public enum UpdateType
+{
+    NotSet, Add, Rm
+}
+
+public class RemoveOptions
+{
+    
+}
+
+#region Objects
+
+internal static class Objects
+{
+    public static string Write(string content)
+    {
+        var hash = Util.Hash(content);
+        Files.Write(Path.Combine(Files.GitletPath(), "objects", hash), content);
+        return hash;
+    }
+}
+
+#endregion
+
+#region Index
+
+internal static class Index
+{
+    public static bool HasFile(string path, int stage)
+    {
+        return Read().ContainsKey(new Key(path, stage));
+    }
+
+    public static Dictionary<Key, string> Read()
+    {
+        var indexFilePath = Path.Combine(Files.GitletPath(), "index");
+        
+        return
+            (File.Exists(indexFilePath) ? File.ReadAllLines(indexFilePath) : new string[0])
+            .ToDictionary(
+                line => new Key(line.Split(' ')[0], int.Parse(line.Split(' ')[1])),
+                line => line.Split(' ')[2]);
+    }
+    
+    public static bool IsFileInConflict(string path)
+    {
+        return HasFile(path, 2);
+    }
+    
+    public static void WriteAdd(string path)
+    {
+        if (IsFileInConflict(path))
+        {
+            RmEntry(path, 1);
+            RmEntry(path, 2);
+            RmEntry(path, 3);
+        }
+        
+        WriteEntry(path, 0, Files.Read(Files.WorkingCopyPath(path)));
+    }
+    
+    public static void WriteRm(string path)
+    {
+        RmEntry(path, 0);
+    }
+    
+    private static void WriteEntry(string path, int stage, string content)
+    {
+        var index = Read();
+        index[new Key(path, stage)] = Objects.Write(content);
+        Write(index);
+    }
+    
+    private static void RmEntry(string path, int stage)
+    {
+        var index = Read();
+        index.Remove(new Key(path, stage));
+        Write(index);
+    }
+    
+    private static void Write(Dictionary<Key, string> index)
+    {
+        var indexStr =
+            string.Join(
+                "\n",
+                index.Select(item => item.Key.Path + " " + item.Key.Stage + " " + item.Value))
+                + "\n";
+        Files.Write(Path.Combine(Files.GitletPath(), "index"), indexStr);
+    }
+    
+    public struct Key
+    {
+        public readonly string Path;
+        public readonly int Stage;
+        
+        public Key(string path, int stage)
+        {
+            Path = path;
+            Stage = stage;
+        }
+        
+        public override bool Equals(object obj)
+        {
+            if (obj is Key)
+            {
+                var other = (Key)obj;
+                return Equals(Path, other.Path) && Stage == other.Stage;
+            }
+            
+            return false;
+        }
+        
+        public override int GetHashCode()
+        {
+            return Tuple.Create(Path, Stage).GetHashCode();
+        }
+    }
+}
+
+#endregion
 
 #region Config
 
@@ -324,6 +515,29 @@ internal class Branch
 
 #endregion
 
+#region Util
+
+internal static class Util
+{
+    private static readonly MD5 md5 = MD5.Create();
+
+    public static string Hash(string content)
+    {
+        var data = md5.ComputeHash(Encoding.UTF8.GetBytes(content));
+        
+        var sb = new StringBuilder();
+
+        for (int i = 0; i < data.Length; i++)
+        {
+            sb.Append(data[i].ToString("x2"));
+        }
+
+        return sb.ToString();
+    }
+}
+
+#endregion
+
 #region File
 
 internal static class Files
@@ -343,6 +557,41 @@ internal static class Files
         {
             throw new Exception("Not in gitlet repository.");
         }
+    }
+    
+    public static string PathFromRepoRoot(string path)
+    {
+        return Relative(WorkingCopyPath(), path);
+    }
+    
+    private static string Relative(string folder, string filespec)
+    {
+        var dir = new DirectoryInfo(filespec);
+        
+        // Folders must end in a slash
+        if ((dir.Attributes & FileAttributes.Directory) == FileAttributes.Directory
+            && !filespec.EndsWith(Path.DirectorySeparatorChar.ToString()))
+        {
+            filespec += Path.DirectorySeparatorChar;
+        }
+    
+        Uri pathUri = new Uri(filespec);
+        
+        // Folders must end in a slash
+        if (!folder.EndsWith(Path.DirectorySeparatorChar.ToString()))
+        {
+            folder += Path.DirectorySeparatorChar;
+        }
+        
+        Uri folderUri = new Uri(Path.GetFullPath(folder));
+        
+        var relative = Uri.UnescapeDataString(folderUri.MakeRelativeUri(pathUri).ToString().Replace('/', Path.DirectorySeparatorChar));
+        return string.IsNullOrEmpty(relative) ? ".\\" : relative;
+    }
+    
+    public static void Write(string file, string content)
+    {
+        WriteFilesFromTree(file.Split(Path.DirectorySeparatorChar).Aggregate((ITree)new File(file, content), (child, dir) => new Directory(dir, child)), "" + Path.DirectorySeparatorChar); 
     }
     
     public static void WriteFilesFromTree(ITree tree, string prefix)
@@ -411,6 +660,11 @@ internal static class Files
         }
         
         return null;
+    }
+    
+    public static string WorkingCopyPath(string path = null)
+    {
+        return Path.Combine(GitletPath(), "..", path ?? "");
     }
     
     public static string[] lsRecursive(string path)
@@ -547,6 +801,11 @@ internal class File : ITree
     public static string ReadAllText(string path)
     {
         return System.IO.File.ReadAllText(path);
+    }
+    
+    public static string[] ReadAllLines(string path)
+    {
+        return System.IO.File.ReadAllLines(path).Where(s => s != "").ToArray();
     }
     
     public static void WriteAllText(string path, string contents)
