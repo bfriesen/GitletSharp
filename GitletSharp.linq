@@ -5,10 +5,11 @@
 void Main()
 {
     Gitlet.Init(new InitOptions() { Bare = false });
-    Gitlet.Add(@"C:\Temp\alpha\number.txt");
+    Gitlet.Add(_devPath + "number.txt");
+    Gitlet.Commit(new CommitOptions());
 }
 
-private const string _devPath = @"C:\Temp\alpha";
+private const string _devPath = @"C:\Temp\alpha\";
 
 public static class Gitlet
 {
@@ -114,6 +115,24 @@ public static class Gitlet
         }
     }
     
+    public static void Commit(CommitOptions options)
+    {
+        Files.AssertInRepo();
+        Config.AssertNotBare();
+        
+        // Write a tree object that represents the current state of the
+        // index.
+        var treeHash = WriteTree();
+        
+        var headDesc = Refs.IsHeadDetached() ? "detached HEAD" : Refs.HeadBranchName();
+        
+        // If the hash of the new tree is the same as the hash of the tree
+        // that the `HEAD` commit points at, abort because there is
+        // nothing new to commit.
+        
+        // TODO: Finish implementing.
+    }
+    
     public static void UpdateIndex(string file, UpdateIndexOptions options)
     {
         Files.AssertInRepo();
@@ -174,6 +193,12 @@ public static class Gitlet
             throw new Exception(pathFromRoot + " does not exist and --remove not passed");
         }
     }
+    
+    public static string WriteTree()
+    {
+        Files.AssertInRepo();
+        return Objects.WriteTree(Files.NestFlatTree(Index.Toc()));
+    }
 }
 
 public class InitOptions
@@ -197,10 +222,62 @@ public class RemoveOptions
     public bool r { get; set; }
 }
 
+public class CommitOptions
+{
+    
+}
+
+#region Refs
+
+internal static class Refs
+{
+    /// <summary>
+    // Returns true if `HEAD` contains a commit hash, rather than the ref of a branch.
+    /// </summary>
+    public static bool IsHeadDetached()
+    {
+        var head = Files.Read(Path.Combine(Files.GitletPath(), "HEAD"));
+        return !head.Contains("refs");
+    }
+    
+    public static string HeadBranchName()
+    {
+        if (!IsHeadDetached())
+        {
+            var head = Files.Read(Path.Combine(Files.GitletPath(), "HEAD"));
+            return Regex.Match(head, @"refs/heads/(.+)").Groups[1].Value;
+        }
+        
+        return null;
+    }
+}
+
+#endregion
+
 #region Objects
 
 internal static class Objects
 {
+    public static string WriteTree(Directory dir)
+    {
+        var treeObject =
+            string.Join(
+                "\n",
+                dir.Contents.Select(
+                    item =>
+                    {
+                        var file = item as File;
+                        if (file != null)
+                        {
+                            return "blob " + file.Contents + " " + file.Name;
+                        }
+                        
+                        return "tree " + WriteTree((Directory)item) + " " + item.Name;
+                    })) + "\n";
+        
+        return Write(treeObject.Dump("Objects.WriteTree:treeObject")).Dump("Objects.WriteTree:return value");
+    }
+
     public static string Write(string content)
     {
         var hash = Util.Hash(content);
@@ -659,7 +736,13 @@ internal static class Files
     
     public static void Write(string file, string content)
     {
-        WriteFilesFromTree(file.Split(Path.DirectorySeparatorChar).Aggregate((ITree)new File(file, content), (child, dir) => new Directory(dir, child)), "" + Path.DirectorySeparatorChar); 
+        WriteFilesFromTree(
+            Files.Relative(Files.CurrentPath, file).Split(Path.DirectorySeparatorChar)
+                .Reverse()
+                .Aggregate(
+                    (ITree)new File(file, content),
+                    (child, dir) => new Directory(dir, child)),
+            Path.DirectorySeparatorChar.ToString());
     }
     
     public static void WriteFilesFromTree(ITree tree, string prefix)
@@ -673,12 +756,12 @@ internal static class Files
         }
         else
         {
-            var dir = (Directory)tree;
-            
             if (!Directory.Exists(path))
             {
                 Directory.CreateDirectory(path);
             }
+            
+            var dir = (Directory)tree;
             
             foreach (var item in dir.Contents)
             {
@@ -697,9 +780,9 @@ internal static class Files
         return null;
     }
     
-    public static string GitletPath(string dir = null)
+    public static string GitletPath()
     {
-        dir = dir ?? _path;
+        var dir = _path;
     
         var dirInfo = new DirectoryInfo(dir);
         
@@ -721,10 +804,6 @@ internal static class Files
             {
                 return potentialGitletPath;
             }
-            else if (dirInfo.Parent != null)
-            {
-                return GitletPath(Path.Combine(dir, ".."));
-            }
         }
         
         return null;
@@ -738,6 +817,27 @@ internal static class Files
     public static string[] LsRecursive(string path)
     {
         return Directory.GetFiles(path);
+    }
+    
+    public static Directory NestFlatTree(Dictionary<string, string> pathToContentMap)
+    {
+        var root = new Directory();
+        
+        foreach (var item in pathToContentMap)
+        {
+            var split = Files.Relative(Files.CurrentPath, item.Key).Split(Path.DirectorySeparatorChar);
+            
+            var dir = root;
+            
+            foreach (var dirName in split.Take(split.Length - 1))
+            {
+                dir = dir.GetOrAddDirectory(dirName);
+            }
+            
+            dir.Add(new File(split[split.Length - 1], item.Value));
+        }
+        
+        return root;
     }
 }
 
@@ -782,7 +882,7 @@ internal interface ITree
 internal class Directory : ITree
 {
     private readonly string _name;
-    private readonly IEnumerable<ITree> _contents;
+    private readonly List<ITree> _contents;
 
     public Directory()
         : this(null, (IEnumerable<ITree>)null)
@@ -802,11 +902,30 @@ internal class Directory : ITree
     public Directory(string name = null, IEnumerable<ITree> contents = null)
     {
         _name = name ?? "";
-        _contents = contents ?? new ITree[0];
+        _contents = (contents as List<ITree>) ?? (contents == null ? new List<ITree>() : contents.ToList());
     }
 
     public string Name { get { return _name; } }
     public IEnumerable<ITree> Contents { get { return _contents; } }
+    
+    public void Add(ITree tree)
+    {
+        _contents.Add(tree);
+    }
+    
+    public Directory GetOrAddDirectory(string dirName)
+    {
+        var dir = _contents.OfType<Directory>().FirstOrDefault(item => item.Name == dirName);
+        
+        if (dir != null)
+        {
+            return dir;
+        }
+        
+        dir = new Directory(dirName);
+        Add(dir);
+        return dir;
+    }
     
     public static bool Exists(string path)
     {
