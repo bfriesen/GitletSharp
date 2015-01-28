@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace GitletSharp
 {
@@ -48,10 +49,14 @@ namespace GitletSharp
             return null;
         }
 
-        public static string TreeHash(string commit)
+        public static string TreeHash(string str)
         {
-            // TODO: Implement
-            return commit;
+            if (Objects.Type(str) == "commit")
+            {
+                return Regex.Split(str, @"\s")[1];
+            }
+
+            return null;
         }
 
         public static bool Exists(string objectHash)

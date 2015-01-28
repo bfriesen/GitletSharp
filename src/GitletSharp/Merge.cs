@@ -4,7 +4,7 @@
     {
         public static bool IsMergeInProgress()
         {
-            // TODO: Imlement
+            // TODO: Implement
             return false;
         }
     }
