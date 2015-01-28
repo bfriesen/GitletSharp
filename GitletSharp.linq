@@ -5,10 +5,10 @@
 void Main()
 {
     Gitlet.Init(new InitOptions() { Bare = false });
-    Gitlet.Add(_devPath);
+    Gitlet.Add(@"C:\Temp\alpha\number.txt");
 }
 
-private const string _devPath = @"C:\Temp\gitlet_sandbox";
+private const string _devPath = @"C:\Temp\alpha";
 
 public static class Gitlet
 {
@@ -829,6 +829,13 @@ internal class Directory : ITree
         
         if (dir.Name == ".gitlet")
         {
+            yield break;
+        }
+        
+        // If it's a file, not a directory, just return that file.
+        if ((dir.Attributes & FileAttributes.Directory) != FileAttributes.Directory)
+        {
+            yield return path;
             yield break;
         }
         
