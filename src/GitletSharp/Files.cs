@@ -81,7 +81,7 @@ namespace GitletSharp
         public static void Write(string file, string content)
         {
             WriteFilesFromTree(
-                Files.Relative(Files.CurrentPath, file).Split(Path.DirectorySeparatorChar)
+                Files.Relative(Files.CurrentPath, file).Split(new[] { Path.DirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries)
                     .Reverse()
                     .Aggregate(
                         (ITree)new File(file, content),

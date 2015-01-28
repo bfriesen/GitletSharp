@@ -118,7 +118,7 @@ namespace GitletSharp
         /// state of the index, writes the commit to the `objects` directory
         /// and points `HEAD` at the commit.
         /// </summary>
-        public static void Commit(CommitOptions options)
+        public static string Commit(CommitOptions options)
         {
             Files.AssertInRepo();
             Config.AssertNotBare();
@@ -132,8 +132,83 @@ namespace GitletSharp
             // If the hash of the new tree is the same as the hash of the tree
             // that the `HEAD` commit points at, abort because there is
             // nothing new to commit.
+            if (Refs.Hash("HEAD") != null &&
+                treeHash == Objects.TreeHash(Objects.Read(Refs.Hash("HEAD"))))
+            {
+                throw new Exception("# On " + headDesc + "\nnothing to commit, working directory clean");
+            }
 
-            // TODO: Finish implementing.
+            // Abort if the repository is in the merge state and there are
+            // unresolved merge conflicts.
+            string[] conflictedPaths = Index.ConflictedPaths();
+            if (Merge.IsMergeInProgress() && conflictedPaths.Length > 0)
+            {
+                throw new Exception(
+                    string.Join("\n", conflictedPaths.Select(p => "U " + p))
+                    + "\ncannot commit because you have unmerged files");
+            }
+
+            // Otherwise, do the commit.
+
+            // If the repository is in the merge state, use a pre-written
+            // merge commit message.  If the repository is not in the
+            // merge state, use the message passed with `-m`.
+            var m =
+                Merge.IsMergeInProgress()
+                    ? Files.Read(Path.Combine(Files.GitletPath(), "MERGE_MSG"))
+                    : options.m;
+
+            // Write the new commit to the `objects` directory.
+            var commitHash = Objects.WriteCommit(treeHash, m, Refs.CommitParentHashes());
+
+            // Point `HEAD` at new commit.
+            UpdateRef("HEAD", commitHash);
+
+            // If `MERGE_HEAD` exists, the repository was in the merge
+            // state. Remove `MERGE_HEAD` and `MERGE_MSG`to exit the merge
+            // state.  Report that the merge is complete.
+            if (Merge.IsMergeInProgress())
+            {
+                File.Delete(Path.Combine(Files.GitletPath(), "MERGE_MSG"));
+                Refs.Rm("MERGE_HEAD");
+                return "Merge made by the three-way strategy";
+            }
+
+            // Repository was not in the merge state, so just report that
+            // the commit is complete.
+            return "[" + headDesc + " " + commitHash + "] " + m;
+        }
+
+        private static void UpdateRef(string refToUpdate, string refToUpdateTo)
+        {
+            Files.AssertInRepo();
+
+            // Get the hash that `refToUpdateTo` points at.
+            var hash = Refs.Hash(refToUpdateTo);
+
+            // Abort if `refToUpdateTo` does not point at a hash.
+            if (!Objects.Exists(hash))
+            {
+                throw new Exception(refToUpdateTo + " not a valid SHA1");
+            }
+
+            // Abort if `refToUpdate` does not match the syntax of a ref.
+            if (!Refs.IsRef(refToUpdate))
+            {
+                throw new Exception("cannot lock the ref " + refToUpdate);
+            }
+
+            // Abort if `hash` points to an object in the `objects` directory
+            // that is not a commit.
+            if (Objects.Type(Objects.Read(hash)) != "commit")
+            {
+                var branch = Refs.TerminalRef(refToUpdate);
+                throw new Exception(branch + " cannot refer to non-commit object " + hash + "\n");
+            }
+
+            // Otherwise, set the contents of the file that the ref represents
+            // to `hash`.
+            Refs.Write(Refs.TerminalRef(refToUpdate), hash);
         }
 
         public static void UpdateIndex(string file, UpdateIndexOptions options)

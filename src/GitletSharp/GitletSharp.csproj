@@ -61,6 +61,7 @@
     <Compile Include="InitCommand.cs" />
     <Compile Include="InitOptions.cs" />
     <Compile Include="ITree.cs" />
+    <Compile Include="Merge.cs" />
     <Compile Include="Objects.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

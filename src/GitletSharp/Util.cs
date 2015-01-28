@@ -5,11 +5,11 @@ namespace GitletSharp
 {
     internal static class Util
     {
-        private static readonly MD5 _md5 = MD5.Create();
+        private static readonly SHA1 _sha1 = SHA1.Create();
 
         public static string Hash(string content)
         {
-            var data = _md5.ComputeHash(Encoding.UTF8.GetBytes(content));
+            var data = _sha1.ComputeHash(Encoding.UTF8.GetBytes(content));
 
             var sb = new StringBuilder();
 

@@ -109,5 +109,11 @@ namespace GitletSharp
                 return Tuple.Create(Path, Stage).GetHashCode();
             }
         }
+
+        public static string[] ConflictedPaths()
+        {
+            // TODO: Implement
+            return new string[0];
+        }
     }
 }
