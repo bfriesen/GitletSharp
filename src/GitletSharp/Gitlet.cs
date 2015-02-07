@@ -183,6 +183,25 @@ namespace GitletSharp
             return "[" + headDesc + " " + commitHash + "] " + m;
         }
 
+        public static string Log(LogOptions options)
+        {
+            var sb = new StringBuilder();
+
+            var commitHash = Refs.Hash("HEAD");
+
+            while (commitHash != null)
+            {
+                var commit = Objects.Read(commitHash);
+
+                sb.AppendLine(commit);
+
+                var match = Regex.Match(commit, @"^parent (?<commitHash>[0-9a-fA-F]{40})$", RegexOptions.Multiline);
+                commitHash = match.Success ? match.Groups["commitHash"].Value : null;
+            }
+
+            return sb.ToString();
+        }
+
         private static void UpdateRef(string refToUpdate, string refToUpdateTo)
         {
             Files.AssertInRepo();
@@ -215,7 +234,7 @@ namespace GitletSharp
             Refs.Write(Refs.TerminalRef(refToUpdate), hash);
         }
 
-        public static void UpdateIndex(string file, UpdateIndexOptions options)
+        private static void UpdateIndex(string file, UpdateIndexOptions options)
         {
             Files.AssertInRepo();
             Config.AssertNotBare();
@@ -276,29 +295,10 @@ namespace GitletSharp
             }
         }
 
-        public static string WriteTree()
+        private static string WriteTree()
         {
             Files.AssertInRepo();
             return Objects.WriteTree(Files.NestFlatTree(Index.Toc()));
-        }
-
-        public static string Log(LogOptions options)
-        {
-            var sb = new StringBuilder();
-
-            var commitHash = Refs.Hash("HEAD");
-
-            while (commitHash != null)
-            {
-                var commit = Objects.Read(commitHash);
-
-                sb.AppendLine(commit);
-
-                var match = Regex.Match(commit, @"^parent (?<commitHash>[0-9a-fA-F]{40})$", RegexOptions.Multiline);
-                commitHash = match.Success ? match.Groups["commitHash"].Value : null;
-            }
-            
-            return sb.ToString();
         }
     }
 }
