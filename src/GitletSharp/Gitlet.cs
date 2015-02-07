@@ -1,6 +1,8 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
+using System.Text;
+using System.Text.RegularExpressions;
 
 namespace GitletSharp
 {
@@ -278,6 +280,25 @@ namespace GitletSharp
         {
             Files.AssertInRepo();
             return Objects.WriteTree(Files.NestFlatTree(Index.Toc()));
+        }
+
+        public static string Log(LogOptions options)
+        {
+            var sb = new StringBuilder();
+
+            var commitHash = Refs.Hash("HEAD");
+
+            while (commitHash != null)
+            {
+                var commit = Objects.Read(commitHash);
+
+                sb.AppendLine(commit);
+
+                var match = Regex.Match(commit, @"^parent (?<commitHash>[0-9a-fA-F]{40})$", RegexOptions.Multiline);
+                commitHash = match.Success ? match.Groups["commitHash"].Value : null;
+            }
+            
+            return sb.ToString();
         }
     }
 }
