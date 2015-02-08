@@ -1,4 +1,5 @@
-﻿using ManyConsole;
+﻿using GitletSharp.Core;
+using ManyConsole;
 
 namespace GitletSharp
 {

@@ -1,4 +1,6 @@
-﻿namespace GitletSharp
+﻿using GitletSharp.Core;
+
+namespace GitletSharp
 {
     internal class Branch
     {

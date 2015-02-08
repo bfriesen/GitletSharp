@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-namespace GitletSharp
+namespace GitletSharp.Core
 {
     internal class Diff
     {
@@ -120,6 +120,36 @@ namespace GitletSharp
                         });
         }
 
+        /// <summary>
+        /// Gets a list of files
+        /// changed in the working copy.  It gets a list of the files that
+        /// are different in the head commit and the commit for the passed
+        /// hash.  It returns a list of paths that appear in both lists.
+        /// </summary>
+        public static string[] ChangedFilesCommitWouldOverwrite(string hash)
+        {
+            var headHash = Refs.Hash("HEAD");
+
+            return
+                Diff.NameStatus(Diff.GetDiff(headHash)).Keys
+                    .Intersect(Diff.NameStatus(Diff.GetDiff(headHash, hash)).Keys)
+                    .ToArray();
+        }
+
+        /// <summary>
+        /// Returns a diff object (see above for the format of a
+        /// diff object).  If `hash1` is passed, it is used as the first
+        /// version in the diff.  If it is not passed, the index is used.  If
+        /// `hash2` is passed, it is used as the second version in the diff.
+        /// If it is not passed` the working copy is used.
+        /// </summary>
+        private static Dictionary<string, Diff> GetDiff(string hash1 = null, string hash2 = null)
+        {
+            var a = hash1 == null ? Index.Toc() : Objects.CommitToc(hash1);
+            var b = hash2 == null ? Index.WorkingCopyToc() : Objects.CommitToc(hash2);
+            return Diff.TocDiff(a, b);
+        }
+
         public static string[] AddedOrModifiedFiles()
         {
             var headToc = Refs.Hash("HEAD") != null ? Objects.CommitToc(Refs.Hash("HEAD")) : new Dictionary<string, string>();
@@ -127,5 +157,4 @@ namespace GitletSharp
             return wc.Where(item => item.Value != FileStatus.DELETE).Select(item => item.Key).ToArray();
         }
     }
-
 }

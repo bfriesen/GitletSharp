@@ -49,6 +49,7 @@
   <ItemGroup>
     <Compile Include="Commands\CloneCommand.cs" />
     <Compile Include="Commands\FetchCommand.cs" />
+    <Compile Include="Commands\PullCommand.cs" />
     <Compile Include="Commands\RemoteCommand.cs" />
     <Compile Include="Commands\AddCommand.cs" />
     <Compile Include="Commands\LogCommand.cs" />

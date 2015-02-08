@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 
-namespace GitletSharp
+namespace GitletSharp.Core
 {
     internal static class Index
     {
@@ -52,7 +52,7 @@ namespace GitletSharp
             RmEntry(path, 0);
         }
 
-        private static void WriteEntry(string path, int stage, string content)
+        public static void WriteEntry(string path, int stage, string content)
         {
             var index = Read();
             index[GetKey(path, stage)] = Objects.Write(content);

@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using GitletSharp.Core;
 
 namespace GitletSharp
 {
@@ -106,7 +107,7 @@ namespace GitletSharp
                 throw new Exception("these files have changes:\n" + string.Join("\n", changesToRm) + "\n");
             }
 
-            foreach (var file in filesToRm.Select(Files.WorkingCopyPath).Where(file => File.Exists(file)))
+            foreach (var file in filesToRm.Select(Files.WorkingCopyPath).Where(File.Exists))
             {
                 File.Delete(file);
             }
@@ -145,7 +146,7 @@ namespace GitletSharp
             // Abort if the repository is in the merge state and there are
             // unresolved merge conflicts.
             string[] conflictedPaths = Index.ConflictedPaths();
-            if (Merge.IsMergeInProgress() && conflictedPaths.Length > 0)
+            if (Core.Merge.IsMergeInProgress() && conflictedPaths.Length > 0)
             {
                 throw new Exception(
                     string.Join("\n", conflictedPaths.Select(p => "U " + p))
@@ -158,7 +159,7 @@ namespace GitletSharp
             // merge commit message.  If the repository is not in the
             // merge state, use the message passed with `-m`.
             var m =
-                Merge.IsMergeInProgress()
+                Core.Merge.IsMergeInProgress()
                     ? Files.Read(Path.Combine(Files.GitletPath(), "MERGE_MSG"))
                     : options.m;
 
@@ -171,7 +172,7 @@ namespace GitletSharp
             // If `MERGE_HEAD` exists, the repository was in the merge
             // state. Remove `MERGE_HEAD` and `MERGE_MSG`to exit the merge
             // state.  Report that the merge is complete.
-            if (Merge.IsMergeInProgress())
+            if (Core.Merge.IsMergeInProgress())
             {
                 File.Delete(Path.Combine(Files.GitletPath(), "MERGE_MSG"));
                 Refs.Rm("MERGE_HEAD");
@@ -279,7 +280,109 @@ namespace GitletSharp
                     remoteObjects.Length,
                     branch,
                     remote,
-                    Merge.IsAForceFetch(oldHash, newHash) ? " (forced)" : "");
+                    Core.Merge.IsAForceFetch(oldHash, newHash) ? " (forced)" : "");
+        }
+
+        public static string Merge(string @ref)
+        {
+            Files.AssertInRepo();
+            Config.AssertNotBare();
+
+            // Get the `receiverHash`, the hash of the commit that the
+            // current branch is on.
+            var receiverHash = Refs.Hash("HEAD");
+
+            // Get the `giverHash`, the hash for the commit to merge into the
+            // receiver commit.
+            var giverHash = Refs.Hash(@ref);
+
+            // Abort if head is detached.  Merging into a detached head is not
+            // supported.
+            if (Refs.IsHeadDetached())
+            {
+                throw new Exception("unsupported");
+            }
+
+            // Abort if `ref` did not resolve to a hash, or if that hash is
+            // not for a commit object.
+            if (giverHash == null || Objects.Type(Objects.Read(giverHash)) != "commit")
+            {
+                throw new Exception(@ref +": expected commit type");
+            }
+
+            // Do not merge if the current branch - the receiver - already has
+            // the giver's changes.  This is the case if the receiver and
+            // giver are the same commit, or if the giver is an ancestor of
+            // the receiver.
+            if (Objects.IsUpToDate(receiverHash, giverHash))
+            {
+                return "Already up-to-date";
+            }
+
+            // Get a list of files changed in the working copy.  Get a list
+            // of the files that are different in the receiver and giver. If
+            // any files appear in both lists then abort.
+            var paths = Diff.ChangedFilesCommitWouldOverwrite(giverHash);
+            if (paths.Length > 0)
+            {
+                throw new Exception("local changes would be lost\n" + string.Join("\n", paths) + "\n");
+            }
+
+            // If the receiver is an ancestor of the giver, a fast forward
+            // is performed.  This is possible because there is already a
+            // commit that incorporates all of the giver's changes into the
+            // receiver.
+            if (Core.Merge.CanFastForward(receiverHash, giverHash))
+            {
+                // Fast forwarding means making the current branch reflect the
+                // commit that `giverHash` points at.  The branch is pointed
+                // at `giverHash`.  The index is set to match the contents of
+                // the commit that `giverHash` points at.  The working copy is
+                // set to match the contents of that commit.
+                Core.Merge.WriteFastForwardMerge(receiverHash, giverHash);
+                return "Fast-forward";
+            }
+
+            // If the receiver is not an ancestor of the giver, a merge
+            // commit must be created.
+
+            // The repository is put into the merge state.  The
+            // `MERGE_HEAD` file is written and its contents set to
+            // `giverHash`.  The `MERGE_MSG` file is written and its
+            // contents set to a boilerplate merge commit message.  A
+            // merge diff is created that will turn the contents of
+            // receiver into the contents of giver.  This contains the
+            // path of every file that is different and whether it was
+            // added, removed or modified, or is in conflict.  Added files
+            // are added to the index and working copy.  Removed files are
+            // removed from the index and working copy.  Modified files
+            // are modified in the index and working copy.  Files that are
+            // in conflict are written to the working copy to include the
+            // receiver and giver versions.  Both the receiver and giver
+            // versions are written to the index.
+            Core.Merge.WriteNonFastForwardMerge(receiverHash, giverHash, @ref);
+
+            // If there are any conflicted files, a message is shown to
+            // say that the user must sort them out before the merge can
+            // be completed.
+            if (Core.Merge.HasConflicts(receiverHash, giverHash))
+            {
+                return "Automatic merge failed. Fix conflicts and commit the result.";
+            }
+
+            return Gitlet.Commit(new CommitOptions());
+        }
+
+        /// <summary>
+        /// Fetches the commit that `branch` is on at `remote`.
+        /// It merges that commit into the current branch.
+        /// </summary>
+        public static string Pull(string remote, string branch)
+        {
+            Files.AssertInRepo();
+            Config.AssertNotBare();
+            Gitlet.Fetch(remote, branch);
+            return Gitlet.Merge("FETCH_HEAD");
         }
 
         public static string Clone(string remotePath, string targetPath, CloneOptions options = null)
@@ -333,7 +436,7 @@ namespace GitletSharp
                 if (remoteHeadHash != null)
                 {
                     Gitlet.Fetch("origin", "master");
-                    Merge.WriteFastForwardMerge(null, remoteHeadHash);
+                    Core.Merge.WriteFastForwardMerge(null, remoteHeadHash);
                 }
 
                 return null;

@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 
-namespace GitletSharp
+namespace GitletSharp.Core
 {
     internal static class Objects
     {
@@ -33,6 +33,13 @@ namespace GitletSharp
             var hash = Util.Hash(content);
             Files.Write(Path.Combine(Files.GitletPath(), "objects", hash), content);
             return hash;
+        }
+
+        public static bool IsUpToDate(string receiverHash, string giverHash)
+        {
+            return
+                receiverHash != null
+                && (receiverHash == giverHash || Objects.IsAncestor(receiverHash, giverHash));
         }
 
         public static string Read(string objectHash)
@@ -127,6 +134,42 @@ namespace GitletSharp
 
             var key = str.Split(' ')[0];
             return _types.TryGetValue(key, out value) ? value : "blob";
+        }
+
+        /// <summary>
+        /// Returns true if `descendentHash` is a descendent of `ancestorHash`.
+        /// </summary>
+        public static bool IsAncestor(string descendentHash, string ancestorHash)
+        {
+            return Objects.Ancestors(descendentHash).Contains(ancestorHash);
+        }
+
+        public static string[] Ancestors(string commitHash)
+        {
+            var parents = Objects.ParentHashes(Objects.Read(commitHash));
+            return
+                parents.Concat(
+                    parents
+                        .Select(Objects.Ancestors)
+                        .SelectMany(x => x))
+                    .ToArray();
+        }
+
+        /// <summary>
+        /// parses `str` as a commit and returns the hashes of its parents.
+        /// </summary>
+        private static string[] ParentHashes(string str)
+        {
+            if (Objects.Type(str) == "commit")
+            {
+                return
+                    str.Split('\n')
+                        .Where(line => Regex.IsMatch(line, "^parent"))
+                        .Select(line => line.Split(' ')[1])
+                        .ToArray();
+            }
+
+            throw new Exception("cannot parse parent hashes");
         }
 
         /// <summary>

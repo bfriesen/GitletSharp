@@ -2,7 +2,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace GitletSharp
+namespace GitletSharp.Core
 {
     internal static class Util
     {

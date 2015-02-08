@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace GitletSharp
+namespace GitletSharp.Core
 {
     internal static class WorkingCopy
     {

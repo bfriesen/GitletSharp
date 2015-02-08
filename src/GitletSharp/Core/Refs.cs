@@ -1,7 +1,9 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
 
-namespace GitletSharp
+namespace GitletSharp.Core
 {
     internal static class Refs
     {
@@ -84,10 +86,20 @@ namespace GitletSharp
             return Refs.IsRef(@ref) && File.Exists(Path.Combine(Files.GitletPath(), @ref));
         }
 
+        /// <summary>
+        /// reads the `FETCH_HEAD` file and gets
+        /// the hash that the remote `branchName` is pointing at.  For more
+        /// information about `FETCH_HEAD` see [gitlet.fetch()](#section-80).
+        /// </summary>
         private static string FetchHeadBranchToMerge(string branchName)
         {
-            // TODO: Implement
-            throw new System.NotImplementedException();
+            return
+                Files.Read(Path.Combine(Files.GitletPath(), "FETCH_HEAD"))
+                    .Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(line => Regex.Match(line, "^([^ ]+) branch " + branchName + " of"))
+                    .Where(m => m.Success)
+                    .Select(m => m.Groups[1].Value)
+                    .First();
         }
 
         public static bool IsRef(string @ref)

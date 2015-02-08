@@ -1,4 +1,5 @@
 ﻿using System;
+using GitletSharp.Core;
 using ManyConsole;
 
 namespace GitletSharp

@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace GitletSharp
+namespace GitletSharp.Core
 {
     internal class Config
     {
