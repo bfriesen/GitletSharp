@@ -48,7 +48,7 @@ namespace GitletSharp
             return Relative(WorkingCopyPath(), path);
         }
 
-        private static string Relative(string folder, string filespec)
+        public static string Relative(string folder, string filespec)
         {
             if (!Path.IsPathRooted(filespec))
             {

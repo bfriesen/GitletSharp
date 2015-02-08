@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System.IO;
+using System.Linq;
 
 namespace GitletSharp
 {
@@ -33,6 +34,12 @@ namespace GitletSharp
 
         public static void WriteAllText(string path, string contents)
         {
+            var directory = Path.GetDirectoryName(path);
+            if (!Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
             System.IO.File.WriteAllText(path, contents);
         }
 

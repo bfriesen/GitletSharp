@@ -8,7 +8,7 @@ namespace GitletSharp
         {
             IsCommand("remote", "Manage set of tracked repositories");
 
-            HasAdditionalArguments(3, "add <name> <url>");
+            HasAdditionalArguments(3, " add <name> <url>");
 
             HasOption("cd=", "Sets the current directory.", dir => Files.CurrentPath = dir);
         }

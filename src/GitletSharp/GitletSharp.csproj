@@ -47,11 +47,15 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Commands\CloneCommand.cs" />
+    <Compile Include="Commands\FetchCommand.cs" />
     <Compile Include="Commands\RemoteCommand.cs" />
     <Compile Include="Commands\AddCommand.cs" />
     <Compile Include="Commands\LogCommand.cs" />
     <Compile Include="Config\Branch.cs" />
     <Compile Include="Commands\CommitCommand.cs" />
+    <Compile Include="Core\WorkingCopy.cs" />
+    <Compile Include="Options\CloneOptions.cs" />
     <Compile Include="Options\CommitOptions.cs" />
     <Compile Include="Core\Config.cs" />
     <Compile Include="Core\Diff.cs" />

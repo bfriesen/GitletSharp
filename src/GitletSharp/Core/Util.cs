@@ -1,4 +1,5 @@
-﻿using System.Security.Cryptography;
+﻿using System;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace GitletSharp
@@ -19,6 +20,25 @@ namespace GitletSharp
             }
 
             return sb.ToString();
+        }
+
+        /// <summary>
+        /// allows execution of a command on a remote
+        // repository.  It returns an anonymous function that takes another
+        // function `fn`.  When the anonymous function is run, it switches
+        // to `remotePath`, executes `fn`, then switches back to the
+        // original directory.
+        /// </summary>
+        public static Func<Func<T>, T> Remote<T>(string remotePath)
+        {
+            return func =>
+            {
+                var current = Files.CurrentPath;
+                Files.CurrentPath = remotePath;
+                var result = func();
+                Files.CurrentPath = current;
+                return result;
+            };
         }
     }
 }

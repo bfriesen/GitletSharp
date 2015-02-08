@@ -66,7 +66,7 @@ namespace GitletSharp
             Write(index);
         }
 
-        private static void Write(Dictionary<Key, string> index)
+        public static void Write(Dictionary<Key, string> index)
         {
             var indexStr =
                 string.Join(
@@ -134,6 +134,24 @@ namespace GitletSharp
         {
             // TODO: Implement
             return new string[0];
+        }
+
+        /// <summary>
+        /// Takes an object that maps file paths to hashes
+        /// of the files' content.  It returns an object that is identical,
+        /// except the keys of the object are composed of the file paths and
+        /// stage `0`.  eg: `{ "file1,0": hash(1), "src/file2,0": hash(2) }'
+        /// </summary>
+        public static Dictionary<Key, string> TocToIndex(Dictionary<string, string> toc)
+        {
+            return
+                toc.Aggregate(
+                    new Dictionary<Key, string>(),
+                    (dictionary, item) =>
+                    {
+                        dictionary[Index.GetKey(item.Key, 0)] = toc[item.Key];
+                        return dictionary;
+                    });
         }
     }
 }

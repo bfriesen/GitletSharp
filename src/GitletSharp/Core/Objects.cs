@@ -49,6 +49,14 @@ namespace GitletSharp
             return null;
         }
 
+        public static string[] AllObjects()
+        {
+            return
+                Directory.GetFiles(Path.Combine(Files.GitletPath(), "objects"))
+                    .Select(Objects.Read)
+                    .ToArray();
+        }
+
         public static string TreeHash(string str)
         {
             if (Objects.Type(str) == "commit")

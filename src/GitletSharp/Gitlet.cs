@@ -206,6 +206,143 @@ namespace GitletSharp
             Config.Write(config);
         }
 
+        /// <summary>
+        /// records the commit that `branch` is at on `remote`.
+        // It does not change the local branch.
+        /// </summary>
+        public static string Fetch(string remote, string branch)
+        {
+            Files.AssertInRepo();
+
+            // Abort if a `remote` or `branch` not passed.
+            if (remote == null || branch == null)
+            {
+                throw new Exception("unsupported");
+            }
+
+            // Abort if `remote` not recorded in config file.
+            if (!Config.Read().Remotes.ContainsKey(remote))
+            {
+                throw new Exception(remote + " does not appear to be a git repository");
+            }
+
+            // Get the location of the remote.
+            var remoteUrl = Files.Absolute(Config.Read().Remotes[remote].Url);
+
+            // Turn the unqualified branch name into a qualified remote ref
+            // eg `[branch] -> refs/remotes/[remote]/[branch]`
+            var remoteRef = Refs.ToRemoteRef(remote, branch);
+
+            // Go to the remote repository and get the hash of the commit
+            // that `branch` is on.
+            var newHash = Util.Remote<string>(remoteUrl)(() =>  Refs.Hash(branch));
+
+            // Abort if `branch` did not exist on the remote.
+            if (newHash == null)
+            {
+                throw new Exception("couldn't find remote ref " + branch);
+            }
+
+            // Otherwise, perform the fetch.
+
+            // Note down the hash of the commit this repository currently
+            // thinks the remote branch is on.
+            var oldHash = Refs.Hash(remoteRef);
+
+            // Get all the objects in the remote `objects` directory and
+            // write them.  to the local `objects` directory.  (This is an
+            // inefficient way of getting all the objects required to
+            // recreate locally the commit the remote branch is on.)
+            var remoteObjects = Util.Remote<string[]>(remoteUrl)(Objects.AllObjects);
+            foreach (var remoteObject in remoteObjects)
+            {
+                Objects.Write(remoteObject);
+            }
+
+            // Set the contents of the file at
+            // `.gitlet/refs/remotes/[remote]/[branch]` to `newHash`, the
+            // hash of the commit that the remote branch is on.
+            Gitlet.UpdateRef(remoteRef, newHash);
+
+            // Record the hash of the commit that the remote branch is on
+            // in `FETCH_HEAD`.  (The user can call `gitlet merge
+            // FETCH_HEAD` to merge the remote version of the branch into
+            // their local branch.  For more details, see
+            // [gitlet.merge()](#section-93).)
+            Refs.Write("FETCH_HEAD", newHash + " branch " + branch + " of " + remoteUrl);
+
+            // Report the result of the fetch.
+            return
+                string.Format(
+                    "From {0}\nCount {1}\n{2} -> {3}/{2}{4}\n",
+                    remoteUrl,
+                    remoteObjects.Length,
+                    branch,
+                    remote,
+                    Merge.IsAForceFetch(oldHash, newHash) ? " (forced)" : "");
+        }
+
+        public static string Clone(string remotePath, string targetPath, CloneOptions options = null)
+        {
+            options = options ?? new CloneOptions();
+
+            // Abort if a `remotePath` or `targetPath` not passed.
+            if (remotePath == null) { throw new ArgumentNullException("remotePath"); }
+            if (targetPath == null) { throw new ArgumentNullException("targetPath"); }
+
+            // Abort if `remotePath` does not exist, or is not a Gitlet
+            // repository. !util.remote(remotePath)(files.inRepo))
+            if (!Directory.Exists(remotePath) || !Util.Remote<bool>(remotePath)(Files.InRepo))
+            {
+                throw new Exception("repository " + remotePath + " does not exist");
+            }
+
+            // Abort if `targetPath` exists and is not empty.
+            targetPath = Files.Absolute(targetPath);
+            var targetDir = new DirectoryInfo(targetPath);
+            if (targetDir.Exists && targetDir.GetFileSystemInfos().Length > 0)
+            {
+                throw new Exception(targetPath + " already exists and is not empty");
+            }
+
+            // Otherwise, do the clone.
+            remotePath = Files.Absolute(remotePath);
+
+            // If `targetPath` doesn't exist, create it.
+            if (!targetDir.Exists)
+            {
+                targetDir.Create();
+            }
+
+            Util.Remote<object>(targetPath)(() =>
+            {
+                // Initialize the directory as a Gitlet repository.
+                Gitlet.Init(options);
+
+                // Set up `remotePath` as a remote called "origin".
+                Gitlet.Remote("add", "origin", Files.Relative(Files.CurrentPath, remotePath));
+
+                // Get the hash of the commit that master is pointing at on
+                // the remote repository.
+                var remoteHeadHash = Util.Remote<string>(remotePath)(() => Refs.Hash("master"));
+
+                // If the remote repo has any commits, that hash will exist.
+                // The new repository records the commit that the passed
+                // `branch` is at on the remote.  It then sets master on the
+                // new repository to point at that commit.
+                if (remoteHeadHash != null)
+                {
+                    Gitlet.Fetch("origin", "master");
+                    Merge.WriteFastForwardMerge(null, remoteHeadHash);
+                }
+
+                return null;
+            });
+
+            // Report the result of the clone.
+            return "Cloning into " + targetPath;
+        }
+
         public static string Log(LogOptions options)
         {
             var sb = new StringBuilder();

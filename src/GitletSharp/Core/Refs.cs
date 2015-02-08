@@ -99,7 +99,7 @@ namespace GitletSharp
                     || @ref == "HEAD" || @ref == "FETCH_HEAD" || @ref == "MERGE_HEAD");
         }
 
-        private static string ToLocalRef(string name)
+        public static string ToLocalRef(string name)
         {
             return "refs/heads/" + name;
         }
@@ -141,6 +141,11 @@ namespace GitletSharp
             {
                 File.Delete(Path.Combine(Files.GitletPath(), @ref));
             }
+        }
+
+        public static string ToRemoteRef(string remote, string name)
+        {
+            return "refs/remotes/" + remote + "/" + name;
         }
     }
 }
