@@ -185,6 +185,35 @@ namespace GitletSharp
             return root;
         }
 
+        public static Dictionary<string, string> FlattenNestedTree(Directory directory)
+        {
+            var dictionary = new Dictionary<string, string>();
+
+            Action<Directory, string> flattenNestedTree = null;
+
+            flattenNestedTree = (dir, parentPath) =>
+            {
+                foreach (var node in dir.Contents)
+                {
+                    var path = Path.Combine(parentPath, node.Name);
+
+                    var file = node as File;
+                    if (file != null)
+                    {
+                        dictionary[path] = file.Contents;
+                    }
+                    else
+                    {
+                        flattenNestedTree((Directory)node, path);
+                    }
+                }
+            };
+
+            flattenNestedTree(directory, "");
+
+            return dictionary;
+        }
+
         public static string Absolute(string path)
         {
             if (!Path.IsPathRooted(path))

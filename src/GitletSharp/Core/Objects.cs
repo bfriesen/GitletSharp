@@ -65,6 +65,38 @@ namespace GitletSharp
                    && File.Exists(Path.Combine(Files.GitletPath(), "objects", objectHash));
         }
 
+        /// <summary>
+        /// takes a tree hash and finds the corresponding tree
+        /// object.  It reads the connected graph of tree objects into a
+        /// nested JS object, like:<br/>
+        /// `{ file1: "hash(1)", src: { file2:  "hash(2)" }`
+        /// </summary>
+        public static Directory FileTree(string treeHash)
+        {
+            Func<string, Directory, Directory> fileTree = null;
+
+            fileTree = (hash, dir) =>
+            {
+                foreach (var line in Read(hash).Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var lineTokens = line.Split(' ');
+
+                    var name = lineTokens[2];
+
+                    var nodeValue =
+                        lineTokens[0] == "tree"
+                            ? (ITree)fileTree(lineTokens[1], new Directory(name))
+                            : new File(name, lineTokens[1]);
+
+                    dir.Add(nodeValue);
+                }
+
+                return dir;
+            };
+
+            return fileTree(treeHash, new Directory());
+        }
+
         public static string WriteCommit(string treeHash, string message, string[] parentHashes)
         {
             return Write("commit " + treeHash + "\n" +
@@ -87,6 +119,17 @@ namespace GitletSharp
 
             var key = str.Split(' ')[0];
             return _types.TryGetValue(key, out value) ? value : "blob";
+        }
+
+        /// <summary>
+        /// Takes the hash of a commit and reads the content
+        /// stored in the tree on the commit.  It turns that tree into a
+        /// table of content that maps filenames to hashes of the files'
+        /// content, like: `{ "file1": hash(1), "a/file2": "hash(2)" }`
+        /// </summary>
+        public static Dictionary<string, string> CommitToc(string hash)
+        {
+            return Files.FlattenNestedTree(Objects.FileTree(Objects.TreeHash(Objects.Read(hash))));
         }
     }
 }

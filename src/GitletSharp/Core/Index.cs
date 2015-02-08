@@ -76,10 +76,25 @@ namespace GitletSharp
             Files.Write(Path.Combine(Files.GitletPath(), "index"), indexStr);
         }
 
+        public static Dictionary<string, string> WorkingCopyToc()
+        {
+            return
+                Index.Read().Keys
+                    .Select(k => k.Path)
+                    .Where(path => File.Exists(Files.WorkingCopyPath(path)))
+                    .Aggregate(
+                        new Dictionary<string, string>(),
+                        (dictionary, path) =>
+                        {
+                            dictionary[path] = Util.Hash(Files.Read(Files.WorkingCopyPath(path)));
+                            return dictionary;
+                        });
+        }
+
         public static string[] MatchingFiles(string pathSpec)
         {
-            var searchPath = Files.PathFromRepoRoot(pathSpec);
-            return Read().Keys.Select(Key => Key.Path).Where(path => Regex.IsMatch(path, "^" + searchPath)).ToArray();
+            var searchPath = Files.PathFromRepoRoot(pathSpec).Replace(".", @"\.");
+            return Read().Keys.Select(key => key.Path).Where(path => Regex.IsMatch(path, "^" + searchPath)).ToArray();
         }
 
         private static Key GetKey(string path, int stage)
