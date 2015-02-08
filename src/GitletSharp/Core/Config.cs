@@ -42,6 +42,11 @@ namespace GitletSharp
             return Parse(Files.Read(Path.Combine(Files.GitletPath(), "config")));
         }
 
+        public static void Write(Config config)
+        {
+            Files.Write(Path.Combine(Files.GitletPath(), "config"), config.ToFileFormat());
+        }
+
         private string ToFileFormat()
         {
             var sb = new StringBuilder();

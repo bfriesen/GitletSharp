@@ -183,6 +183,29 @@ namespace GitletSharp
             return "[" + headDesc + " " + commitHash + "] " + m;
         }
 
+        public static void Remote(string command, string name, string path)
+        {
+            Files.AssertInRepo();
+
+            // Abort if `command` is not "add".  Only "add" is supported.
+            if (command != "add")
+            {
+                throw new Exception("unsupported");
+            }
+
+            // Abort if repository already has a record for a remote called
+            // `name`.
+            if (Config.Read().Remotes.ContainsKey(name))
+            {
+                throw new Exception("remote " + name + " already exists");
+            }
+
+            // Otherwise, add remote record.
+            var config = Config.Read();
+            config.Remotes.Add(name, new Remote { Url = path });
+            Config.Write(config);
+        }
+
         public static string Log(LogOptions options)
         {
             var sb = new StringBuilder();
