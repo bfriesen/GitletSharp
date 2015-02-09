@@ -15,7 +15,10 @@ namespace GitletSharp
         public static void Init(InitOptions options = null)
         {
             // Abort if already a repository.
-            if (Files.InRepo()) { return; }
+            if (Files.InRepo())
+            {
+                throw new Exception("unsupported");
+            }
 
             options = options ?? new InitOptions();
 

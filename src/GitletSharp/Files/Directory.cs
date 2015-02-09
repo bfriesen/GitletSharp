@@ -76,10 +76,17 @@ namespace GitletSharp
                 yield break;
             }
 
-            // If it's a file, not a directory, just return that file.
-            if ((int)dir.Attributes != -1 && (dir.Attributes & FileAttributes.Directory) != FileAttributes.Directory)
+            // If it's not a directory...
+            if (!dir.Exists)
             {
-                yield return path;
+                // ...but it is a file...
+                if (File.Exists(path))
+                {
+                    // ...just return that file.
+                    yield return path;
+                }
+
+                // Otherwise, there's nothing to return.
                 yield break;
             }
 
