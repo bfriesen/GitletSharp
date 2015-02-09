@@ -53,8 +53,10 @@
     <Compile Include="Commands\RemoteCommand.cs" />
     <Compile Include="Commands\AddCommand.cs" />
     <Compile Include="Commands\LogCommand.cs" />
+    <Compile Include="Commands\StatusCommand.cs" />
     <Compile Include="Config\Branch.cs" />
     <Compile Include="Commands\CommitCommand.cs" />
+    <Compile Include="Core\Status.cs" />
     <Compile Include="Core\WorkingCopy.cs" />
     <Compile Include="Options\CloneOptions.cs" />
     <Compile Include="Options\CommitOptions.cs" />

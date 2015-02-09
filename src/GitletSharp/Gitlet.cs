@@ -388,6 +388,19 @@ namespace GitletSharp
             return Gitlet.Merge("FETCH_HEAD");
         }
 
+        /// <summary>
+        /// reports the state of the repo: the current branch,
+        /// untracked files, conflicted files, files that are staged to be
+        /// committed and files that are not staged to be committed.
+        /// </summary>
+        /// <returns></returns>
+        public static string Status()
+        {
+            Files.AssertInRepo();
+            Config.AssertNotBare();
+            return Core.Status.Get();
+        }
+
         public static string Clone(string remotePath, string targetPath, CloneOptions options = null)
         {
             options = options ?? new CloneOptions();

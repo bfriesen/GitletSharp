@@ -94,30 +94,29 @@ namespace GitletSharp.Core
             };
 
             // Get an array of all the paths in all the versions.
-            var paths = receiver.Keys.Concat(@base.Keys).Concat(giver.Keys);
+            var paths = receiver.Keys.Concat(@base.Keys).Concat(giver.Keys).Distinct();
 
             return
-                paths.Distinct()
-                    .Aggregate(
-                        new Dictionary<string, Diff>(),
-                        (dictionary, path) =>
+                paths.Aggregate(
+                    new Dictionary<string, Diff>(),
+                    (dictionary, path) =>
+                    {
+                        string r, b, g;
+
+                        receiver.TryGetValue(path, out r);
+                        @base.TryGetValue(path, out b);
+                        giver.TryGetValue(path, out g);
+
+                        dictionary[path] = new Diff
                         {
-                            string r, b, g;
+                            Status = fileStatus(path),
+                            Receiver = r,
+                            Giver = g,
+                            Base = b,
+                        };
 
-                            receiver.TryGetValue(path, out r);
-                            @base.TryGetValue(path, out b);
-                            giver.TryGetValue(path, out g);
-
-                            dictionary[path] = new Diff
-                            {
-                                Status = fileStatus(path),
-                                Receiver = r,
-                                Giver = g,
-                                Base = b,
-                            };
-
-                            return dictionary;
-                        });
+                        return dictionary;
+                    });
         }
 
         /// <summary>
@@ -143,7 +142,7 @@ namespace GitletSharp.Core
         /// `hash2` is passed, it is used as the second version in the diff.
         /// If it is not passed` the working copy is used.
         /// </summary>
-        private static Dictionary<string, Diff> GetDiff(string hash1 = null, string hash2 = null)
+        public static Dictionary<string, Diff> GetDiff(string hash1 = null, string hash2 = null)
         {
             var a = hash1 == null ? Index.Toc() : Objects.CommitToc(hash1);
             var b = hash2 == null ? Index.WorkingCopyToc() : Objects.CommitToc(hash2);
